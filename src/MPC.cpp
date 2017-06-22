@@ -23,7 +23,7 @@ const double Lf = 2.67;
 
 // NOTE: feel free to play around with this
 // or do something completely different
-double ref_v = 40 * 0.44704;
+double ref_v = 50 * 0.44704;
 
 // The solver takes all the state variables and actuator
 // variables in a singular vector. Thus, we should to establish
@@ -55,9 +55,15 @@ class FG_eval {
 
     // The part of the cost based on the reference state.
     for (int t = 0; t < N; t++) {
-      fg[0] += 400 * CppAD::pow(vars[cte_start + t], 2);
-      fg[0] += 400 * CppAD::pow(vars[epsi_start + t], 2);
-      fg[0] += CppAD::pow(vars[v_start + t] - ref_v, 2);
+      CppAD::AD<double> cte2 = CppAD::pow(vars[cte_start + t], 2);
+      fg[0] += 120 * cte2;
+      CppAD::AD<double> epsi2 = CppAD::pow(vars[epsi_start + t], 2);
+      fg[0] += 120 * epsi2;
+      CppAD::AD<double> v2 = CppAD::pow(vars[v_start + t] - ref_v, 2);
+      fg[0] += 20 * v2;
+      // Penalize for not slowing in curves
+      fg[0] += 40 * CppAD::pow(vars[v_start + t] - vars[v_start + t] * 0.1, 2) * cte2;
+      fg[0] += 40 * epsi2 * cte2;
     }
 
     // Minimize the use of actuators.
@@ -68,7 +74,7 @@ class FG_eval {
 
     // Minimize the value gap between sequential actuations.
     for (int t = 0; t < N - 2; t++) {
-      fg[0] += 2000 * CppAD::pow(vars[delta_start + t + 1] - vars[delta_start + t], 2);
+      fg[0] += 1000 * CppAD::pow(vars[delta_start + t + 1] - vars[delta_start + t], 2);
       fg[0] += CppAD::pow(vars[a_start + t + 1] - vars[a_start + t], 2);
     }
 
@@ -107,8 +113,8 @@ class FG_eval {
       AD<double> delta0 = vars[delta_start + t - 1];
       AD<double> a0 = vars[a_start + t - 1];
 
-      AD<double> f0 = coeffs[0] + coeffs[1] * x0 + coeffs[2] * CppAD::pow(x0, 2) + coeffs[3] * CppAD::pow(x0, 3);
-      AD<double> psides0 = CppAD::atan(coeffs[1] + 2 * coeffs[2] * x0 + 3 * coeffs[3] * CppAD::pow(x0, 2));
+      AD<double> f0 = coeffs[0] + coeffs[1] * x0 + coeffs[2] * CppAD::pow(x0, 2);// + coeffs[3] * CppAD::pow(x0, 3);
+      AD<double> psides0 = CppAD::atan(coeffs[1] + 2 * coeffs[2] * x0);// + 3 * coeffs[3] * CppAD::pow(x0, 2));
 
       // Here's `x` to get you started.
       // The idea here is to constraint this value to be 0.

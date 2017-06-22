@@ -116,12 +116,12 @@ int main() {
           Eigen::VectorXd ptsx_v = Eigen::VectorXd::Map(&ptsx[0], ptsx.size());
           Eigen::VectorXd ptsy_v = Eigen::VectorXd::Map(&ptsy[0], ptsy.size());
 
-          Eigen::VectorXd coeffs = polyfit(ptsx_v, ptsy_v, 3);
+          Eigen::VectorXd coeffs = polyfit(ptsx_v, ptsy_v, 2);
 
           // predict state in 100 ms
           double latency = 0.1; 
-          double f0 = coeffs[0] + coeffs[1] * px + coeffs[2] * pow(px, 2) + coeffs[3] * pow(px, 3);
-          double psides0 = atan(coeffs[1] + 2 * coeffs[2] * px + 3 * coeffs[3] * pow(px, 2));
+          double f0 = coeffs[0] + coeffs[1] * px + coeffs[2] * pow(px, 2);// + coeffs[3] * pow(px, 3);
+          double psides0 = atan(coeffs[1] + 2 * coeffs[2] * px);// + 3 * coeffs[3] * pow(px, 2));
           px = px + v * latency;
           psi = v * delta / Lf * latency;
           v = v + a * latency;
@@ -153,7 +153,7 @@ int main() {
 
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Green line
-          for (size_t i = 2; i < result.size(); ++i) {
+          for (size_t i = 0; i < result.size(); ++i) {
             if (i % 2 == 0) {
               mpc_x_vals.push_back(result[i]);
             } else {

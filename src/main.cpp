@@ -105,10 +105,14 @@ int main() {
           *
           */
 
-          // Transform to car coordinates
+          // Preprocessing of vehicles state.
+          // Transform to car coordinates from global coordinates.
           for (size_t i = 0; i < ptsx.size(); ++i) {
+            // Raw position in car coordinates
             double x = ptsx[i] - px;
             double y = ptsy[i] - py;
+
+            // Take orientation into account
             ptsx[i] = (x * cos(psi) + y * sin(psi));
             ptsy[i] = (-x * sin(psi) + y * cos(psi));
           }
@@ -116,12 +120,16 @@ int main() {
           Eigen::VectorXd ptsx_v = Eigen::VectorXd::Map(&ptsx[0], ptsx.size());
           Eigen::VectorXd ptsy_v = Eigen::VectorXd::Map(&ptsy[0], ptsy.size());
 
+          // I consistently observe the car cutting corners with a polynomial of
+          // order 3, so I reduced it to 2.
           Eigen::VectorXd coeffs = polyfit(ptsx_v, ptsy_v, 2);
 
-          // predict state in 100 ms
+          // HANDLE LATENCY 
+          // Predict state in 100 ms using a procedure similar to the update step within MPC::Solve.
           double latency = 0.1; 
           double f0 = coeffs[0] + coeffs[1] * px + coeffs[2] * pow(px, 2);// + coeffs[3] * pow(px, 3);
           double psides0 = atan(coeffs[1] + 2 * coeffs[2] * px);// + 3 * coeffs[3] * pow(px, 2));
+          // Assume a straight line path, no need to alter py
           px = px + v * latency;
           psi = v * delta / Lf * latency;
           v = v + a * latency;
@@ -134,6 +142,21 @@ int main() {
           epsi = -psides0 * v * delta / Lf * latency;
 
           Eigen::VectorXd state(6);
+
+          // EXPLANATION OF STATE VECTOR
+          //
+          // Since we are using vehicle coordinates, the x and y of the state vector will always
+          // be 0.
+          //
+          // psi is the orientation of the vehicle with respect to the tangent of the 
+          // fitted path.
+          //
+          // v is the velocity of the vehicle.
+          //
+          // cte is the cross track error, or transverse displacement from the fitted path.
+          //
+          // epsi is the orientation error, analogous to cte except comparing psi with the 
+          // tangent of the fitted path.
           state << 0.0, 0.0, psi, v, cte, epsi;
 
           vector<double> result = mpc.Solve(state, coeffs);

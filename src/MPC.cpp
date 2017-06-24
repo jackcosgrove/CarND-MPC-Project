@@ -5,8 +5,15 @@
 
 using CppAD::AD;
 
-// TODO: Set the timestep length and duration
+// This timestamp was found through trial and error. Anything more or less would cause
+// bizarre paths. For example N = 5 would lead to short paths that approached the landmarks
+// too aggressively. N = 20 would lead to too far a forward projection and strange fitted paths.
+// N and dt are inversely related. The larger N becomes, the smaller dt must be, and vice versa.
+// I had success when the product of the two was around 5.
 size_t N = 10;
+// Similarly this value was found empirically. This value is 5x of the latency, and it was necessary to
+// make the dt larger than the latency to avoid "chasing your tail". I also tried 0.2 as that was the
+// Nyquist minimum given a latency of 0.1, but had better success with 0.5.
 double dt = 0.5;
 
 // This value assumes the model presented in the classroom is used.
@@ -55,26 +62,50 @@ class FG_eval {
 
     // The part of the cost based on the reference state.
     for (int t = 0; t < N; t++) {
+      // All cost coefficients were tuned by trial and error unless otherwise noted.
+
+      // The squared cross track error. Measures transverse distance from the desired path
       CppAD::AD<double> cte2 = CppAD::pow(vars[cte_start + t], 2);
       fg[0] += 120 * cte2;
+
+      // The squared error of the orientation error. Measures yaw displacement from the 
+      // tangent to the desired path
       CppAD::AD<double> epsi2 = CppAD::pow(vars[epsi_start + t], 2);
       fg[0] += 120 * epsi2;
+
+      // The squared difference between the reference velocity (50 mph) and the actual velocity.
+      // This causes the vehicle to try to achieve the the reference velocity at all times.
+      // This can be canceled out by other facotrs, however. The coefficient was chosen to
+      // make acceleration quick enough without causing instability when recovering from
+      // path deviations.
       CppAD::AD<double> v2 = CppAD::pow(vars[v_start + t] - ref_v, 2);
       fg[0] += 20 * v2;
+
       // Penalize for not slowing in curves
-      fg[0] += 40 * CppAD::pow(vars[v_start + t] - vars[v_start + t] * 0.1, 2) * cte2;
+
+      // This factor multiples the cross track error by 0.9 * the velocity, such that the velocity
+      // will decrease in steps as the CTE increases.
+      fg[0] += 40 * CppAD::pow(vars[v_start + t] * 0.9, 2) * cte2;
+
+      // This factor penalizes the car for too much yaw when the vehicle is far from where it should be.
       fg[0] += 40 * epsi2 * cte2;
     }
 
     // Minimize the use of actuators.
     for (int t = 0; t < N - 1; t++) {
+      // Try to keep the steering angle at zero to maintain a steady state
       fg[0] += 40 * CppAD::pow(vars[delta_start + t], 2);
+
+      // Try to keep acceleration at 0 to maintain a steady state
       fg[0] += 120 * CppAD::pow(vars[a_start + t], 2);
     }
 
     // Minimize the value gap between sequential actuations.
     for (int t = 0; t < N - 2; t++) {
+      // Penalize oversteering
       fg[0] += 1000 * CppAD::pow(vars[delta_start + t + 1] - vars[delta_start + t], 2);
+
+      // Penalize aggressive acceleration and deceleration
       fg[0] += CppAD::pow(vars[a_start + t + 1] - vars[a_start + t], 2);
     }
 
